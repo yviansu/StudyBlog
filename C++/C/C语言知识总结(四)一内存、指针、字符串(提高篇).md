@@ -105,17 +105,18 @@ char *get_str(){
 
 int main(int argc, char const *argv[])
 {
-    char buf[128] = {0};
-
-    // strcpy(buf, get_str());
-    // printf("buf = %s\n", buf);//乱码，不确定
-
     char *p = get_str();
-    // 乱码 不确定  因为get_str()函数中 str数组在栈区中的空间已经释放了
+    // get_str()函数中 str数组在栈区中的空间已经释放了
     printf("p = %s\n", p);
     return 0;
 }
 ```
+编译会提示warning：
+
+warning: function returns address of local variable [-Wreturn-local-addr]
+
+return str;
+
 输出： 
 
 ```cpp
@@ -125,6 +126,54 @@ p = (null)
 
 内存分析: 
 ![在这里插入图片描述](https://img-blog.csdnimg.cn/20181113152050949.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3p4enh6eDAxMTk=,size_16,color_FFFFFF,t_70)
+
+```cpp
+#include <stdio.h>
+#include <string.h>
+
+char *get_str(){
+    char *str = "abcd";
+    printf("str = %s\n", str);
+    return str;
+}
+
+int main(int argc, char const *argv[])
+{
+    char *p = get_str();
+    // get_str函数中str指向的字符串常量存放在静态数据区
+    printf("p = %s\n", p);
+    return 0;
+}
+
+// 运行结果
+str = abcd
+p = abcd
+```
+![Alt text](images/image1.png)
+
+```cpp
+#include <stdio.h>
+#include <string.h>
+
+char *get_str(){
+    static char str[] = "abcd";
+    printf("str = %s\n", str);
+    return str;
+}
+
+int main(int argc, char const *argv[])
+{
+    char *p = get_str();
+    // get_str函数中str指向的字符串常量存放在静态数据区
+    printf("p = %s\n", p);
+    return 0;
+}
+
+// 运行结果
+str = abcd
+p = abcd
+```
+![Alt text](images/image2.png)
 
 ③堆区: 
 
@@ -178,21 +227,70 @@ p = abcd
 ```cpp
 #include <stdio.h>
 
-int main(int argc, char const *argv[])
+void func2(int *a) 
 {
-    int a;
-    int b;
-    printf("&a = %d, &b = %d\n", &a, &b);
-
-    char buf[100];
-    printf("buf = %d, buf+1 = %d\n", buf, buf+1);
-    return 0;
+    int b = 0;
+    printf("a: %x\nb: %x\n", a, &b);
 }
+
+void func1()
+{
+    int a = 0;
+    func2(&a);
+}
+
+int main()
+{
+    func1();
+    char buf[100];
+    printf("buf = %x, buf+1 = %x\n", buf, buf+1);
+}
+
+// 运行结果
+a: f3ecbb44
+b: f3ecbb24
+（a > b）
+buf = 93743de0, buf+1 = 93743de1
+ (buf+1 > buf)
 ```
-运行结果:
-![在这里插入图片描述](https://img-blog.csdnimg.cn/2018111316061433.png)
 分析: 
-![在这里插入图片描述](https://img-blog.csdnimg.cn/20181113160621747.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3p4enh6eDAxMTk=,size_16,color_FFFFFF,t_70)
+
+![Alt text](images/image3.png)
+
+汇编：
+每push一个变量，esp寄存器就会减少，比如push一个int变量，esp-4
+
+堆： 堆的生长方向是从下往上的
+
+
+```c
+#include <stdio.h>
+
+void func2(int *a) 
+{
+    int *b = NULL;
+    b = malloc(sizeof(int));
+    printf("a: %x\nb: %x\n", a, b);
+}
+
+void func1()
+{
+    int *a = NULL;
+    a = malloc(sizeof(int));
+    func2(a);
+}
+
+int main()
+{
+    func1();
+}
+
+// 运行结果
+a: dbaa2a0
+b: dbaa2c0
+（a < b）
+```
+
 
 ***
 ### <font color= red id = "2">指针
@@ -460,6 +558,7 @@ int main(int argc, char const *argv[])
 aaaabbbbcccc
 ```
 > 注意`buf`和`p`不完全等价，因为`buf`是一个常量，系统要释放空间的时候使用。
+> （buf的内存分配子站上，栈上的内存分配由编译器自动管理，所以不需要显式释放buf）
 
 
 
